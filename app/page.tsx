@@ -94,12 +94,15 @@ export default function Home() {
       }
 
       const blob = await res.blob();
-
       const url = window.URL.createObjectURL(blob);
 
       const a = document.createElement("a");
       a.href = url;
-      a.download = `converted.${format}`;
+
+      // ★ ファイル名維持（ここが修正ポイント）
+      const originalName = file.name.replace(/\.[^/.]+$/, "");
+      a.download = `${originalName}.${format}`;
+
       a.click();
 
       clearInterval(interval);
@@ -112,12 +115,14 @@ export default function Home() {
   };
 
   return (
-    <main className="flex items-center justify-center h-screen bg-gray-100">
+    <main className="flex items-center justify-center h-screen bg-white text-black">
       <div className="bg-white p-6 rounded-xl shadow w-80 text-center">
-        <h1 className="text-xl mb-4">ファイル変換</h1>
+        <h1 className="text-xl mb-4">
+          PDF一括変換ツール（無料）
+        </h1>
 
         {/* ルール表示 */}
-        <p className="text-xs text-gray-500 mb-2">
+        <p className="text-sm text-gray-700 mb-2">
           対応: JPG / PNG / WEBP / PDF（最大10MB）
         </p>
 
