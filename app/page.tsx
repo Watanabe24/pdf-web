@@ -4,22 +4,66 @@ import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 
 export default function Home() {
-  const [files, setFiles] = useState<File[]>([]);
+  const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
   const [format, setFormat] = useState("pdf");
   const [progress, setProgress] = useState(0);
 
+  // =========================
+  // ファイル制限
+  // =========================
+  const validateFile = (file: File) => {
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      return "対応していないファイル形式";
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return "ファイルサイズは10MB以下にしてください";
+    }
+
+    return null;
+  };
+
   const onDrop = (acceptedFiles: File[]) => {
-    setFiles(acceptedFiles);
+    const f = acceptedFiles[0];
+    if (!f) return;
+
+    const error = validateFile(f);
+
+    if (error) {
+      setStatus("❌ " + error);
+      setFile(null);
+      return;
+    }
+
+    setFile(f);
+    setStatus("");
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    multiple: true,
+    multiple: false,
   });
 
+  // =========================
+  // エラー翻訳
+  // =========================
+  const translateError = (text: string) => {
+    if (text.includes("unsupported")) return "❌ 非対応のファイル形式";
+    if (text.includes("too large")) return "❌ ファイルサイズが大きすぎる";
+    if (text.includes("cloudconvert")) return "❌ 変換に失敗しました";
+    return "❌ エラーが発生しました";
+  };
+
   const upload = async () => {
-    if (files.length === 0) {
+    if (!file) {
       alert("ファイル選べ");
       return;
     }
@@ -33,39 +77,36 @@ export default function Home() {
       }, 300);
 
       const form = new FormData();
-
-      files.forEach((file) => {
-        form.append("files", file);
-      });
-
+      form.append("file", file);
       form.append("format", format);
 
-      const res = await fetch("http://localhost:4000/convert-multi", {
+      const res = await fetch("/api/convert", {
         method: "POST",
         body: form,
       });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
+        const text = await res.text();
         clearInterval(interval);
         setProgress(0);
-        setStatus("エラー: " + (text || "不明"));
+        setStatus(translateError(text));
         return;
       }
 
       const blob = await res.blob();
+
       const url = window.URL.createObjectURL(blob);
 
       const a = document.createElement("a");
       a.href = url;
-      a.download = "converted.zip";
+      a.download = `converted.${format}`;
       a.click();
 
       clearInterval(interval);
       setProgress(100);
-      setStatus("完了");
-    } catch (e) {
-      setStatus("通信エラー");
+      setStatus("✅ 変換完了");
+    } catch (e: any) {
+      setStatus("❌ 通信エラー");
       setProgress(0);
     }
   };
@@ -73,7 +114,12 @@ export default function Home() {
   return (
     <main className="flex items-center justify-center h-screen bg-gray-100">
       <div className="bg-white p-6 rounded-xl shadow w-80 text-center">
-        <h1 className="text-xl mb-4">ファイル変換（複数対応）</h1>
+        <h1 className="text-xl mb-4">ファイル変換</h1>
+
+        {/* ルール表示 */}
+        <p className="text-xs text-gray-500 mb-2">
+          対応: JPG / PNG / WEBP / PDF（最大10MB）
+        </p>
 
         <div
           {...getRootProps()}
@@ -83,8 +129,8 @@ export default function Home() {
 
           {isDragActive ? (
             <p>ここにドロップ</p>
-          ) : files.length > 0 ? (
-            <p>{files.length} 個のファイル</p>
+          ) : file ? (
+            <p>{file.name}</p>
           ) : (
             <p>ドラッグ&ドロップ or クリック</p>
           )}
@@ -116,10 +162,10 @@ export default function Home() {
           onClick={upload}
           className="bg-black text-white px-4 py-2 rounded w-full"
         >
-          一括変換
+          変換
         </button>
 
-        <p className="mt-4">{status}</p>
+        <p className="mt-4 text-sm">{status}</p>
       </div>
     </main>
   );
